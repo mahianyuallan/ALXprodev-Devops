@@ -1,34 +1,55 @@
-#!/usr/bin/env bash
-# Script: batchProcessing-0x02
-# Objective: Retrieve data for multiple Pokémon and save to separate JSON files
+#!/bin/bash
+# Script Name: batchProcessing-0x02
+# Description: Fetch Pokémon data from the PokeAPI with retry logic and error handling.
 
-# List of Pokémon
-pokemons=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+# List of Pokémon names (you can edit or load from a file)
+POKEMONS=("bulbasaur" "charmander" "squirtle" "pikachu" "invalidPokemon")
 
-# Create output directory if it doesn't exist
-mkdir -p pokemon_data
+# Base URL
+API_URL="https://pokeapi.co/api/v2/pokemon"
+
+# Directory to store JSON files
+OUTPUT_DIR="./pokemon_data"
+mkdir -p "$OUTPUT_DIR"
+
+# Log file for failed requests
+ERROR_LOG="error_log.txt"
+> "$ERROR_LOG"
+
+# Function to fetch Pokémon data with retry logic
+fetch_pokemon() {
+    local name=$1
+    local retries=3
+    local count=1
+    local success=false
+
+    while [ $count -le $retries ]; do
+        echo "Fetching data for $name (Attempt $count)..."
+        response=$(curl -s -o "$OUTPUT_DIR/$name.json" -w "%{http_code}" "$API_URL/$name")
+
+        if [ "$response" -eq 200 ]; then
+            echo "✅ Successfully fetched data for $name"
+            success=true
+            break
+        else
+            echo "⚠️  Attempt $count failed for $name (HTTP $response)"
+            ((count++))
+            sleep 2  # wait before retrying
+        fi
+    done
+
+    if [ "$success" = false ]; then
+        echo "❌ Failed to fetch data for $name after $retries attempts" | tee -a "$ERROR_LOG"
+        rm -f "$OUTPUT_DIR/$name.json"  # delete incomplete file
+    fi
+}
 
 # Loop through each Pokémon
-for pokemon in "${pokemons[@]}"; do
-  echo "Fetching data for $pokemon..."
-  
-  # API URL
-  url="https://pokeapi.co/api/v2/pokemon/$pokemon"
-  
-  # Output file path
-  outfile="pokemon_data/${pokemon}.json"
-
-  # Fetch data
-  response=$(curl -s -w "%{http_code}" -o "$outfile" "$url")
-
-  # Check HTTP status
-  if [ "$response" -eq 200 ]; then
-    echo "Saved data to $outfile ✅"
-  else
-    echo "❌ Failed to fetch $pokemon (HTTP $response)" | tee -a errors.txt
-    rm -f "$outfile"
-  fi
-
-  # Handle API rate limiting — wait 2 seconds between requests
-  sleep 2
+for pokemon in "${POKEMONS[@]}"; do
+    fetch_pokemon "$pokemon"
 done
+
+echo
+echo "✅ Data fetching complete!"
+echo "📁 JSON files stored in: $OUTPUT_DIR"
+echo "🪶 Errors logged in: $ERROR_LOG"
