@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Script: batchProcessing-0x02
+# Objective: Retrieve data for multiple Pokémon and save to separate JSON files
+
+# List of Pokémon
+pokemons=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+
+# Create output directory if it doesn't exist
+mkdir -p pokemon_data
+
+# Loop through each Pokémon
+for pokemon in "${pokemons[@]}"; do
+  echo "Fetching data for $pokemon..."
+  
+  # API URL
+  url="https://pokeapi.co/api/v2/pokemon/$pokemon"
+  
+  # Output file path
+  outfile="pokemon_data/${pokemon}.json"
+
+  # Fetch data
+  response=$(curl -s -w "%{http_code}" -o "$outfile" "$url")
+
+  # Check HTTP status
+  if [ "$response" -eq 200 ]; then
+    echo "Saved data to $outfile ✅"
+  else
+    echo "❌ Failed to fetch $pokemon (HTTP $response)" | tee -a errors.txt
+    rm -f "$outfile"
+  fi
+
+  # Handle API rate limiting — wait 2 seconds between requests
+  sleep 2
+done
